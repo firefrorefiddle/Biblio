@@ -10,6 +10,8 @@
                  [org.clojure/clojurescript "1.9.542"]
                  [org.clojure/core.async "0.3.442"]
                  [org.omcljs/om "0.8.8"]
+                 [clojure-future-spec "1.9.0-alpha16-1"]
+                 [org.clojure/test.check "0.9.0"]
                  [com.google.guava/guava "21.0"] ; fixes mysterious error            
                  [om-sync "0.1.1"]
 ;                 [enlive "1.1.6"]
