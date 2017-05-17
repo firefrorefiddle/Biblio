@@ -23,8 +23,8 @@
                  ::users []}
          ::app {::current-page ::books-page}}))
 
-(def nav {::pages {::books-page {::view books-page ::href "/books"}
-                   ::users-page {::view users-page ::href "/users"}}
+(def nav {::pages {::books-page {::view #'books-page ::href "/books"}
+                   ::users-page {::view #'users-page ::href "/users"}}
           ::menu {::nav-left [{:name "Benutzer" :href "/users" ::page ::users-page}
                               {:name "Bücher" :href "/books" ::page ::books-page}]
                   ::nav-right [{:name "Logout" :href "/logout"}]}})
@@ -138,23 +138,6 @@
 (println (s/conform ::app-state @app-state))
 (println (s/explain ::app-state @app-state))
 
-(edn-xhr
- {:method :get
-  :url "/booksel"
-  :on-complete
-  (fn [res]
-    (swap! app-state #(assoc % ::data {::books res ::users nil}))
-    (println "after xhr")
-    (println (s/explain ::app-state @app-state))
-    (om/root init app-state
-             {:target (.-body js/document)}))})
-;      (om/root app-view app-state
-;               {:target (.getElementById js/document "app")
-;                :shared {:tx-chan tx-pub-chan}
-;                :tx-listen
-;                (fn [tx-data root-cursor]
-;                  (put! tx-chan [tx-data root-cursor]))}))}))
-         
 
 (accountant/configure-navigation!
  {:nav-handler
@@ -164,4 +147,24 @@
   (fn [path]
     (secretary/locate-route path))})
 
+(om/root init app-state
+         {:target (.-body js/document)})
+
 (accountant/dispatch-current!)
+
+(edn-xhr
+ {:method :get
+  :url "/booksel"
+  :on-complete
+  (fn [res]
+    (swap! app-state #(assoc % ::data {::books res ::users nil}))
+    (println "after xhr")
+    (println (s/explain ::app-state @app-state)))})
+
+;      (om/root app-view app-state
+;               {:target (.getElementById js/document "app")
+;                :shared {:tx-chan tx-pub-chan}
+;                :tx-listen
+;                (fn [tx-data root-cursor]
+;                  (put! tx-chan [tx-data root-cursor]))}))}))
+         
