@@ -1,6 +1,6 @@
 (ns ^:figwheel-always churchlib.core
 ;  (:require-macros [cljs.core.async.macros :refer [go]])
-  (:require [kioo.om :refer [content html-content set-style set-attr do-> substitute listen lifecycle]]
+  (:require [kioo.om :refer [content html-content add-class set-style set-attr do-> substitute listen lifecycle]]
             [kioo.core :as kioo]
 ;            [cljs.core.async :as async :refer [put! chan alts!]]
             [om.core :as om :include-macros true]
@@ -25,14 +25,15 @@
 
 (def nav {::pages {::books-page {::view books-page ::href "/books"}
                    ::users-page {::view users-page ::href "/users"}}
-          ::menu {::nav-left [["Benutzer" "/users"]
-                              ["Bücher" "/books"]]
-                  ::nav-right [["Logout" "/logout"]]}})
+          ::menu {::nav-left [{:name "Benutzer" :href "/users" ::page ::users-page}
+                              {:name "Bücher" :href "/books" ::page ::books-page}]
+                  ::nav-right [{:name "Logout" :href "/logout"}]}})
 
 (s/def ::books (s/and seq?
                       #(every? map? %)))
 (s/def ::data (s/keys :req [::books ::users]))
-(s/def ::current-page #{::books-page ::users-page})
+(s/def ::page #{::books-page ::users-page})
+(s/def ::current-page ::page)
 (s/def ::app (s/keys :req [::current-page]))
 (s/def ::app-state (s/keys :req [::data ::app]))
 
@@ -41,8 +42,8 @@
 (s/def ::books-page ::pagedef)
 (s/def ::users-page ::pagedef)
 (s/def ::pages (s/keys :req [::books-page ::users-page]))
-(s/def ::href vector?)
-(s/def ::nav-items (s/and vector? #(every? vector? %)))
+(s/def ::link (s/keys :req-un [::name ::href] :opt [::page]))
+(s/def ::nav-items (s/and vector? #(every? ::link %)))
 (s/def ::nav-left ::nav-items)
 (s/def ::nav-right ::nav-items)
 (s/def ::menu (s/keys :req [::nav-left ::nav-right]))
@@ -65,19 +66,25 @@
 
 
 (defsnippet nav-item "churchlib/main.html" [:#main-navbar-nav :> [:li first-of-type]]
-  [[name target]]
-  {[:a] (do-> (content name)
-              (set-attr :href target))})
+  [{:keys [name href churchlib.core/page] :as inp}]
+  {[:li] (if (= page (get-in @app-state [::app ::current-page]))
+           (add-class "active")
+           identity)
+   [:a] (do-> 
+         (set-attr :href href)
+         (content name))})
 
 (defsnippet nav-bar "churchlib/main.html" [:#main-navbar-nav]
   [navitems]
-  {[:ul] (do (println "nav-bar")
-             (println (s/conform ::nav-items navitems))
+  {[:ul] (do (println "nav-bar " navitems)
+             (println (s/explain ::nav-items navitems))
              (content (map nav-item navitems)))})
 
 (defsnippet nav-bar-right "churchlib/main.html" [:.navbar-right]
   [navitems]
-  {[:ul] (content (map nav-item navitems))})
+  {[:ul] (do (println "nav-bar right")
+             (println (s/explain ::nav-items navitems))             
+             (content (map nav-item navitems)))})
 
 (defsnippet brand "churchlib/main.html" [:a.navbar-brand]
   []
