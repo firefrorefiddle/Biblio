@@ -1,6 +1,6 @@
 (ns ^:figwheel-always churchlib.core
 ;  (:require-macros [cljs.core.async.macros :refer [go]])
-  (:require [kioo.om :refer [content html-content add-class set-style set-attr do-> substitute listen lifecycle]]
+  (:require [kioo.om :refer [content html-content append after before add-class set-style set-attr do-> substitute listen lifecycle]]
             [kioo.core :as kioo]
 ;            [cljs.core.async :as async :refer [put! chan alts!]]
             [om.core :as om :include-macros true]
@@ -19,8 +19,8 @@
 (declare books-page users-page)
 
 (def app-state
-  (atom {::data {::books []
-                 ::users []}
+  (atom {::data {::books {}
+                 ::users {}}
          ::app {::current-page ::books-page}}))
 
 (def nav {::pages {::books-page {::view #'books-page ::href "/books"}
@@ -29,8 +29,9 @@
                               {:name "Bücher" :href "/books" ::page ::books-page}]
                   ::nav-right [{:name "Logout" :href "/logout"}]}})
 
-(s/def ::books (s/and seq?
-                      #(every? map? %)))
+(s/def ::book (s/keys :req [:book/id :book/author :book/title]))
+(s/def ::books (s/and map?
+                      #(every? (fn [b] (s/conform ::book b)) %)))
 (s/def ::data (s/keys :req [::books ::users]))
 (s/def ::page #{::books-page ::users-page})
 (s/def ::current-page ::page)
@@ -55,6 +56,10 @@
 
 ;(defmacro setup-routes [
 
+(defmacro def-nav-route [link]
+  `(secretary/defroute ~(:href link) []
+     (swap! ~app-state #(assoc-in % [::app ::current-page] ~(::page link)))))
+
 (secretary/defroute "/" []
   (swap! app-state #(assoc-in % [::app ::current-page] ::books-page)))
 
@@ -64,8 +69,7 @@
 (secretary/defroute "/users" []
   (swap! app-state #(assoc-in % [::app ::current-page] ::users-page)))
 
-
-(defsnippet nav-item "churchlib/main.html" [:#main-navbar-nav :> [:li first-of-type]]
+(defsnippet nav-item "main.html" [:#main-navbar-nav :> [:li first-of-type]]
   [{:keys [name href churchlib.core/page] :as inp}]
   {[:li] (if (= page (get-in @app-state [::app ::current-page]))
            (add-class "active")
@@ -74,45 +78,73 @@
          (set-attr :href href)
          (content name))})
 
-(defsnippet nav-bar "churchlib/main.html" [:#main-navbar-nav]
+(defsnippet nav-bar "main.html" [:#main-navbar-nav]
   [navitems]
   {[:ul] (do (println "nav-bar " navitems)
              (println (s/explain ::nav-items navitems))
              (content (map nav-item navitems)))})
 
-(defsnippet nav-bar-right "churchlib/main.html" [:.navbar-right]
+(defsnippet nav-bar-right "main.html" [:.navbar-right]
   [navitems]
   {[:ul] (do (println "nav-bar right")
              (println (s/explain ::nav-items navitems))             
              (content (map nav-item navitems)))})
 
-(defsnippet brand "churchlib/main.html" [:a.navbar-brand]
+(defsnippet brand "main.html" [:a.navbar-brand]
   []
   {[:a.navbar-brand] (do-> (content "Biblio")
                            (set-attr :href "/"))})
 
-(defsnippet data-line "churchlib/booklist.html" [:table :> :tbody :> [:tr first-of-type]]
-  [{:keys [title author status]}]
+(defsnippet add-info-line "booklist.html" [:table :> :tbody :> :tr.add_info]
+  [data]
+  {})
+
+(defsnippet data-line "booklist.html" [:table :> :tbody :> :tr.viewing]
+  [{:keys [title author status] :as data}]
   {[:td.title] (content title)
    [:td.author] (content author)
-   [:td.status] (content status)})
+   [:td.status] (content status)
+   [:input.edit_toggle] (listen :onClick #(om/transact! data (fn [st] (assoc st ::editing true))))})
 
-(defsnippet books-page "churchlib/booklist.html" [:#app]
+(defsnippet edit-line "booklist.html" [:table :> :tbody :> :tr.editing]
+  [{:keys [title author status] :as data}]
+  {[:td.title :input] (do-> (set-attr :value title)
+                            (listen :onChange
+                                    #(om/transact! data
+                                                   (fn [st]
+                                                     (assoc st :title (.-value (.-target %)))))))
+   [:td.author :input] (do-> (set-attr :value author)
+                             (listen :onChange
+                                     #(om/transact! data
+                                                    (fn [st]
+                                                      (assoc st :author (.-value (.-target %)))))))
+   [:td.status :input] (do-> (set-attr :status title)
+                             (listen :onChange
+                                     #(om/transact! data
+                                                    (fn [st]
+                                                      (assoc st :status (.-value (.-target %)))))))
+   [:input.edit_toggle] (listen :onClick #(om/transact! data (fn [st] (assoc st ::editing false))))})
+
+
+(defn table-line "booklist.html" [{:keys [::editing] :as data}]
+  (if editing
+    (edit-line data)
+    (data-line data)))
+
+(defsnippet books-page "booklist.html" [:#app]
   [data]
-  {[:table :> :tbody] (do (println "bookspage")
-                          (s/conform ::app-state data)
-                          (content (map data-line (get-in data [::data ::books]))))})
-;  {[:#app] (content "Buecher")})
+  {[:table :> :tbody] (do (s/conform ::app-state data)
+                          (content (for [book-id (keys (get-in data [::data ::books]))]
+                                     (table-line (get-in data [::data ::books book-id])))))})
 
-(defsnippet users-page "churchlib/users.html" [:#app]
+(defsnippet users-page "users.html" [:#app]
   [a]
   {}) ; [:#app] (content "Users")})
 
-(deftemplate biblio "churchlib/main.html"
+(deftemplate biblio "main.html"
   [data]
   {[:#main-navbar-nav] (do (println "biblio")
-                           (println (s/conform ::app-state data))
-                           
+                           (println (s/conform ::app-state data))                           
                            (substitute (nav-bar (get-in nav [::menu ::nav-left]))))
    [:.navbar-right] (do (println "biblio2")
                         (substitute (nav-bar-right (get-in data [::menu ::nav-right]))))
@@ -120,7 +152,9 @@
    [:#app] (do (println "biblio4")
                (let [curp (get-in data [::app ::current-page])
                      view (get-in nav [::pages curp ::view])]
-                 (s/conform ::view view)
+                 (println "current page " curp)
+                 (println (s/explain ::page curp))
+                 (println (s/conform ::view view))
                  (substitute (view data))))
                                         ;(do
 ;                         (println (get-in @app-state [:app :current-page]))

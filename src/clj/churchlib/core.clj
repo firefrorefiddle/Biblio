@@ -5,7 +5,8 @@
             [compojure.route :as route]
             [compojure.handler :as handler]
             [clojure.edn :as edn]
-            [datomic.api :as d]))
+            [datomic.api :as d]
+            [net.cgrand.enlive-html :as html]))
 
 (def uri "datomic:free://localhost:4334/churchlib")
 (def conn (d/connect uri))
@@ -20,7 +21,7 @@
 
 (defn get-books []
   (let [db (d/db conn)]
-    (->> (d/q '[:find ?title ?author
+    (->> (d/q '[:find ?b ?title ?author
                 :where
                 [?b :book/title ?title]
                 [?b :book/author ?author]                
@@ -36,8 +37,10 @@
                      :book/author author}]))
 
 (defn books []
-  (let [book-line (fn [[book author]] {:title book :author author :status "OK"})]
-    (generate-response (map book-line (get-books)))))
+  (let [book-line (fn [[id book author]] {:book-id id :title book :author author :status "OK"})
+        books (get-books)]
+    (generate-response (zipmap (map first books)
+                               (map book-line (get-books))))))
 
 (defn put-book [params]
   (let [title (:book/title params)

@@ -14,7 +14,7 @@
                  [org.clojure/test.check "0.9.0"]
                  [com.google.guava/guava "21.0"] ; fixes mysterious error            
                  [om-sync "0.1.1"]
-;                 [enlive "1.1.6"]
+                 [enlive "1.1.6"]
                  [kioo "0.5.0-SNAPSHOT"]
                  [ring "1.5.1"]                  ; Getting errors with 1.6
                  [compojure "1.6.0"]
@@ -35,7 +35,7 @@
   :figwheel {:ring-handler churchlib.core/handler}
 
   :cljsbuild {:builds [{:id "dev"
-                        :source-paths ["src/clj" "src/cljs"]
+                        :source-paths ["src/clj" "src/cljs" "resources/templates"]
                         :figwheel true
                         :compiler {:output-to "resources/public/js/main.js"
                                    :output-dir "resources/public/js/out"
