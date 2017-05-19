@@ -1,10 +1,9 @@
 (ns churchlib.util
-  (:require [datomic.api :as d]
+  (:require [churchlib.db :refer [db-uri]]
+            [datomic.api :as d]
             [clojure.java.io :as io]
             [clojure.edn :as edn])
   (:import datomic.Util))
-
-(def uri "datomic:free://localhost:4334/churchlib")
 
 (defn read-all [f]
   (Util/readAll (io/reader f)))
@@ -15,10 +14,10 @@
   :done)
 
 (defn create-db []
-  (d/create-database uri))
+  (d/create-database db-uri))
 
 (defn get-conn []
-  (d/connect uri))
+  (d/connect db-uri))
 
 (defn load-schema []
   (transact-all (get-conn) (io/resource "data/schema.edn")))

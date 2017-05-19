@@ -6,10 +6,10 @@
             [compojure.handler :as handler]
             [clojure.edn :as edn]
             [datomic.api :as d]
-            [net.cgrand.enlive-html :as html]))
+            [net.cgrand.enlive-html :as html]
+            [churchlib.db :refer [db-uri]]))
 
-(def uri "datomic:free://localhost:4334/churchlib")
-(def conn (d/connect uri))
+(def conn (d/connect db-uri))
 
 (defn index []
   (file-response "public/html/index.html" {:root "resources"}))
@@ -19,26 +19,28 @@
    :headers {"Content-Type" "application/edn"}
    :body (pr-str data)})
 
-(defn get-books []
-  (let [db (d/db conn)]
-    (->> (d/q '[:find ?b ?title ?author
-                :where
-                [?b :book/title ?title]
-                [?b :book/author ?author]                
-                ]
-              db)
-         vec)))
-;         (map #(d/touch (d/entity db (first %))))
-;         vec)))
+(defn get-books []  
+  (let [db (d/db conn)
+        to-map (fn [[id title author]]
+                 {:db/id id :book/title title :book/author author :book/status "OK"})]
+    (map to-map
+         (->> (d/q '[:find ?b ?title ?author
+                     :where
+                     [?b :book/title ?title]
+                     [?b :book/author ?author]                
+                     ]
+                   db)
+              vec))))
 
-(defn add-book [id author title]
-  (d/transact conn [{:db/id id
-                     :book/title title
-                     :book/author author}]))
+
+(defn add-book [author title]
+  (let [tid (d/tempid :db.part/user)]
+    (d/transact conn [{:db/id tid
+                       :book/title title
+                       :book/author author}])))
 
 (defn books []
-  (let [book-line (fn [[id book author]] {:book-id id :title book :author author :status "OK"})
-        books (get-books)]
+  (let [books (get-books)]
     (generate-response (zipmap (map first books)
                                (map book-line (get-books))))))
 
